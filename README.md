@@ -80,10 +80,24 @@ https://cdn.jsdelivr.net/gh/用户名/仓库@main/output/merged.yaml
 
 | 文件 | 格式 | 给谁用 |
 |---|---|---|
+| **`output/merged-mobile.txt`** | Base64 | **手机端首选**：150 个延迟最低的真实节点，列表不卡、测速快 |
 | `output/merged.txt` | Base64 | FlClash、mihomo 系（全量，含 REALITY+WS） |
-| `output/merged-xray.txt` | Base64 | **v2rayN / v2rayNG 必须用这个**（已剔除 Xray 不兼容节点） |
+| `output/merged-xray.txt` | Base64 | **v2rayN / v2rayNG 全量用这个**（已剔除 Xray 不兼容节点） |
 | `output/merged.yaml` | Clash YAML | FlClash、Clash Verge、mihomo（支持规则分流） |
 | `output/merged.urls` | 明文，每行一个 | 自己肉眼检查、或手动挑节点 |
+
+### 为什么有个 mobile 版
+
+800 个节点在手机上会导致列表滚动卡顿、跑一轮测速要好几分钟。mobile 版只保留 **150 个**，
+但必须是「延迟最低的一批」。
+
+这里有个坑值得说：**排序不能只看 TCP 延迟**。Cloudflare 在国内有接入点，
+CF 地址的 TCP 握手极快（常 20–50ms），纯按延迟排会把一堆 CF 代理节点推到最前面
+（实测手机版 150 个里 74% 是 CF IP）。而这类节点多是别人用 CF Workers 搭的，
+Worker 可能早就删了、带宽也受免费额度限制。
+
+所以排序键是 `(是否 Cloudflare, TCP 延迟)` —— **真实 VPS 节点优先，CF 垫后**，
+组内再按延迟升序。实测调整后手机版 150 个里 CF 节点为 0。
 
 ### ⚠️ 为什么有两份 txt
 
