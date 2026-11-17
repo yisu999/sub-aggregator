@@ -152,6 +152,17 @@ def node_name(link):
     return ("%s:%s" % ep) if ep else "node"
 
 
+def is_reality_ws(link):
+    """判断是否为 REALITY over WebSocket。
+
+    Xray 26.x 只支持 REALITY over RAW / XHTTP / gRPC，不支持 WS；
+    混入一个这样的节点会让内核直接拒绝整份配置（v2rayN 症状：10808 端口起不来）。
+    mihomo / sing-box 支持该组合，所以只在输出 Xray 兼容版时剔除。
+    """
+    low = link.lower()
+    return "security=reality" in low and "type=ws" in low
+
+
 # ---------------------------------------------------------------- TCP 测活
 def tcp_alive(host, port, timeout=3.0):
     try:
@@ -460,6 +471,15 @@ def main():
     (OUT_DIR / "merged.txt").write_text(
         base64.b64encode(txt.encode()).decode(), encoding="utf-8")
 
+    # 额外生成 Xray 兼容版（始终生成，避免文件时有时无导致订阅 404）
+    # Xray 26.x 不支持 REALITY over WebSocket（只支持 RAW / XHTTP / gRPC），
+    # 而 v2rayN 默认用 Xray 内核 —— 混入一个这样的节点会让整份配置被拒绝、端口起不来。
+    # mihomo / sing-box 则支持，所以 merged.txt 保留全量。
+    xray_ok = [n for n in all_nodes if not is_reality_ws(n)]
+    blocked = len(all_nodes) - len(xray_ok)
+    (OUT_DIR / "merged-xray.txt").write_text(
+        base64.b64encode("\n".join(xray_ok).encode()).decode(), encoding="utf-8")
+
     clash = build_clash_yaml(all_nodes)
     if clash:
         (OUT_DIR / "merged.yaml").write_text(clash, encoding="utf-8")
@@ -472,6 +492,13 @@ def main():
     if clash:
         log("    %s  (Clash 规则模式)" % (OUT_DIR / "merged.yaml"))
     log("    %s  (明文，可肉眼检查)" % (OUT_DIR / "merged.urls"))
+    if blocked:
+        log("    %s  (%d 节点 · v2rayN/Xray 专用，已剔除 %d 个 REALITY+WS)"
+            % (OUT_DIR / "merged-xray.txt", len(xray_ok), blocked))
+    else:
+        log("    %s  (%d 节点 · v2rayN/Xray 专用，本轮无不兼容节点)"
+            % (OUT_DIR / "merged-xray.txt", len(xray_ok)))
+    log("    ↑ Xray 不支持 REALITY over WS，用 v2rayN 请选这一份")
     log("=" * 62)
     log("  下一步：把 merged.txt 或 merged.yaml 导入客户端，")
     log("         在客户端里点一次「测延迟/测速」，它会帮你排好序。")

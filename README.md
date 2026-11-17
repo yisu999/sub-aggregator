@@ -80,9 +80,21 @@ https://cdn.jsdelivr.net/gh/用户名/仓库@main/output/merged.yaml
 
 | 文件 | 格式 | 给谁用 |
 |---|---|---|
-| `output/merged.txt` | Base64 | v2rayN、v2rayNG、FlClash（通用） |
+| `output/merged.txt` | Base64 | FlClash、mihomo 系（全量，含 REALITY+WS） |
+| `output/merged-xray.txt` | Base64 | **v2rayN / v2rayNG 必须用这个**（已剔除 Xray 不兼容节点） |
 | `output/merged.yaml` | Clash YAML | FlClash、Clash Verge、mihomo（支持规则分流） |
 | `output/merged.urls` | 明文，每行一个 | 自己肉眼检查、或手动挑节点 |
+
+### ⚠️ 为什么有两份 txt
+
+**Xray 26.x 不支持 REALITY over WebSocket**（只支持 RAW / XHTTP / gRPC）。
+而 v2rayN 默认用 Xray 内核 —— 订阅里只要混进**一个**这样的节点，
+内核就会拒绝整份配置，症状是 **10808 端口不监听、完全上不了网**。
+
+实测 800 个节点里有 **28 个**属于这类（约 3.5%），所以：
+
+- 用 **v2rayN / v2rayNG** → 订阅 `merged-xray.txt`
+- 用 **FlClash / Clash Verge / sing-box** → 订阅 `merged.txt` 或 `merged.yaml`（它们支持）
 
 YAML 已用 mihomo 核心校验过：`mihomo.exe -t -f merged.yaml` → `test is successful`。
 
