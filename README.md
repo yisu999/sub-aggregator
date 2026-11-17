@@ -125,6 +125,52 @@ Clash YAML 格式的源会被跳过（不引入 PyYAML 依赖）。
 
 ---
 
+## 长期运行保障
+
+跑到第 61 天悄悄停掉，是这类定时任务最常见的死法。这里做了三道防线：
+
+| 风险 | 应对 |
+|---|---|
+| **GitHub 60 天无活动自动禁用** | 每次运行都会 commit 输出文件，这本身就是仓库活动，会重置计时器。参考同类的上游项目已连续运行 6 个月，状态一直是 `active`。**不需要额外的保活 workflow。** |
+| **整点调度被延迟/丢弃** | cron 用 `23 */6 * * *` 而不是 `0 */6 * * *`。GitHub 官方文档明确说整点是负载高峰，`schedule` 会被延迟甚至丢弃。 |
+| **某轮所有源同时挂掉，把订阅刷成空的** | 缩水守门：本轮节点数 < 上一轮的 30% 时**拒绝覆盖**，保留上一轮输出，并让 workflow 失败（你会收到 GitHub 邮件提醒）。确认要覆盖请加 `--force`。 |
+
+另外加了两条工程约束：
+
+- **`concurrency`**：同一时间只允许一个实例，避免两次运行互相覆盖 push
+- **push 失败自动 rebase 重试**：`git push || (git pull --rebase -X theirs origin main && git push)`
+
+### 判断它是不是还活着
+
+打开 <https://github.com/yisu999/sub-aggregator/actions>，看「更新订阅」的状态：
+
+- 绿色 ✓ 且有最近 6 小时内的运行 → 正常
+- 显示 `disabled_inactivity` → 60 天规则触发，点一下 **Enable workflow** 即可
+- 很久没有新运行 → 检查是不是某次缩水守门拦住了
+
+命令行查：
+
+```bash
+gh run list -R 用户名/仓库 --limit 5
+gh workflow list -R 用户名/仓库          # 看 state 是否 active
+```
+
+### 源老化怎么办
+
+`sources.txt` 里 8 个源中，前 4 个的实测通过率是 86%–100%，但任何免费源都可能在某天彻底死掉。
+
+**冗余设计**：其中两个源（`verified` / `global`）是别人用 100+ 个源真测筛选后的成品。
+即使自己那 6 个源全死，光靠这两个也能拿到几百个节点。
+
+发现输出节点数持续走低时，按这个顺序排查：
+
+1. 本地跑 `python aggregate.py --no-check`，看哪些源 `[fail]`
+2. 去 <https://github.com/LeilaMi/AutoMergePublicNodes-Optimized> 的 `source_scores.md`
+   找当前评分高的源，替换掉死源
+3. 改完 push，workflow 会自动跑一次验证
+
+---
+
 ## 常见问题
 
 **Q：跑出来几十个节点全是超时？**
