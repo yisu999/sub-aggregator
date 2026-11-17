@@ -25,6 +25,7 @@ import base64
 import socket
 import time
 import argparse
+import ipaddress
 import urllib.request
 import urllib.error
 from pathlib import Path
@@ -163,6 +164,29 @@ def is_reality_ws(link):
     return "security=reality" in low and "type=ws" in low
 
 
+# Cloudflare 的 IP 段。这类地址多为别人用 CF Workers/Pages 搭的代理，
+# TCP 握手极快（CF 在国内外都有接入点），但 Worker 可能早已删除、带宽也受限，
+# 单纯按 TCP 延迟排序会把它们全堆到最前面，挤掉真实 VPS 节点。
+CF_NETS = [ipaddress.ip_network(n) for n in (
+    "104.16.0.0/13", "104.24.0.0/14", "172.64.0.0/13", "188.114.96.0/20",
+    "162.159.0.0/16", "173.245.48.0/20", "103.21.244.0/22", "141.101.64.0/18",
+    "108.162.192.0/18", "190.93.240.0/20", "197.234.240.0/22", "198.41.128.0/17",
+    "131.0.72.0/22", "103.22.200.0/22", "103.31.4.0/22", "199.27.128.0/21",
+)]
+
+
+def is_cf_ip(link):
+    """节点出口是否落在 Cloudflare IP 段（域名形式无法判断，按非 CF 处理）"""
+    ep = endpoint(link)
+    if not ep:
+        return False
+    try:
+        ip = ipaddress.ip_address(ep[0])
+    except ValueError:
+        return False
+    return any(ip in net for net in CF_NETS)
+
+
 def count_nodes_in(path):
     """读取已有的 base64 订阅文件，返回其中节点数（失败返回 0）"""
     try:
@@ -174,12 +198,18 @@ def count_nodes_in(path):
 
 
 # ---------------------------------------------------------------- TCP 测活
-def tcp_alive(host, port, timeout=3.0):
+def tcp_latency(host, port, timeout=3.0):
+    """测 TCP 握手耗时（毫秒）。失败返回 None。
+
+    注意：这只是 TCP 层延迟，不等于代理真实延迟，但正相关
+    （同地区同线路的握手快，代理通常也快）。用它排序比随机顺序强得多。
+    """
+    t0 = time.time()
     try:
         with socket.create_connection((host, int(port)), timeout=timeout):
-            return True
+            return (time.time() - t0) * 1000
     except Exception:
-        return False
+        return None
 
 
 # ---------------------------------------------------------------- Clash 输出
@@ -399,6 +429,8 @@ def main():
                     help="测活前先按源优先级截断到 N 个（默认 3000，0=不限）")
     ap.add_argument("--min-ratio", type=float, default=0.3,
                     help="缩水守门阈值：本轮少于上轮×该比例则保留旧结果（默认 0.3）")
+    ap.add_argument("--mobile-limit", type=int, default=150,
+                    help="手机精简版保留的节点数（默认 150，0=不生成精简版）")
     ap.add_argument("--force", action="store_true",
                     help="强制覆盖输出，跳过缩水守门")
     args = ap.parse_args()
@@ -453,27 +485,38 @@ def main():
             log("  按源优先级预截断：%d → %d 个送测" % (len(all_nodes), pre))
             all_nodes = all_nodes[:pre]
         log("-" * 62)
-        log("  TCP 连通性粗筛（超时 %.1fs，并发 %d）..." % (args.timeout, args.workers))
-        alive = []
+        log("  TCP 测活 + 延迟测量（超时 %.1fs，并发 %d）..." % (args.timeout, args.workers))
+        alive = []          # [(latency_ms, node), ...]
         with ThreadPoolExecutor(max_workers=args.workers) as ex:
             futs = {}
             for n in all_nodes:
                 ep = endpoint(n)
                 if ep:
-                    futs[ex.submit(tcp_alive, ep[0], ep[1], args.timeout)] = n
+                    futs[ex.submit(tcp_latency, ep[0], ep[1], args.timeout)] = n
             done = 0
             for fut in as_completed(futs):
                 done += 1
-                if fut.result():
-                    alive.append(futs[fut])
+                lat = fut.result()
+                if lat is not None:
+                    alive.append((lat, futs[fut]))
                 if done % 200 == 0:
                     log("    已测 %d / %d，存活 %d" % (done, len(futs), len(alive)))
         log("  粗筛结果：%d → %d 个存活（剔除 %d 个死节点）"
             % (len(all_nodes), len(alive), len(all_nodes) - len(alive)))
-        # 恢复源优先级顺序（as_completed 是乱序）
-        order = {n: i for i, n in enumerate(all_nodes)}
-        alive.sort(key=lambda n: order.get(n, 999999))
-        all_nodes = alive
+        # 按 TCP 延迟排序 —— 之前按"源优先级"排，结果欧洲节点占大多数，
+        # 近东亚的节点排在后面拿不到。实测延迟更接近真实体验。
+        # 排序策略：真实 VPS 节点优先，Cloudflare 节点垫后，组内按 TCP 延迟升序。
+        # 纯按延迟排会让 CF 节点（国内接入点握手极快）挤占全部前排，
+        # 但它们的 Worker 可能已失效、带宽也受限，见 CF_NETS 注释。
+        alive.sort(key=lambda x: (is_cf_ip(x[1]), x[0]))
+        if alive:
+            lats = [l for l, _ in alive]
+            cf_cnt = sum(1 for _, n in alive if is_cf_ip(n))
+            log("  延迟分布：最快 %.0fms / 中位 %.0fms / 最慢 %.0fms"
+                % (lats[0], lats[len(lats) // 2], lats[-1]))
+            log("  出口类型：真实节点 %d / Cloudflare %d（已置后）"
+                % (len(alive) - cf_cnt, cf_cnt))
+        all_nodes = [n for _, n in alive]
 
     if args.limit and len(all_nodes) > args.limit:
         all_nodes = all_nodes[:args.limit]
@@ -509,6 +552,14 @@ def main():
     (OUT_DIR / "merged-xray.txt").write_text(
         base64.b64encode("\n".join(xray_ok).encode()).decode(), encoding="utf-8")
 
+    # 手机精简版：节点太多会让 v2rayNG / FlClash 列表卡顿、测速耗时过长。
+    # 取延迟最低的一批，同时保证 Xray 兼容。
+    mob = []
+    if args.mobile_limit:
+        mob = xray_ok[:args.mobile_limit]
+        (OUT_DIR / "merged-mobile.txt").write_text(
+            base64.b64encode("\n".join(mob).encode()).decode(), encoding="utf-8")
+
     clash = build_clash_yaml(all_nodes)
     if clash:
         (OUT_DIR / "merged.yaml").write_text(clash, encoding="utf-8")
@@ -528,6 +579,10 @@ def main():
         log("    %s  (%d 节点 · v2rayN/Xray 专用，本轮无不兼容节点)"
             % (OUT_DIR / "merged-xray.txt", len(xray_ok)))
     log("    ↑ Xray 不支持 REALITY over WS，用 v2rayN 请选这一份")
+    if mob:
+        mob_cf = sum(1 for n in mob if is_cf_ip(n))
+        log("    %s  (%d 节点 · 手机精简版，其中 CF %d 个)"
+            % (OUT_DIR / "merged-mobile.txt", len(mob), mob_cf))
     log("=" * 62)
     log("  下一步：把 merged.txt 或 merged.yaml 导入客户端，")
     log("         在客户端里点一次「测延迟/测速」，它会帮你排好序。")
