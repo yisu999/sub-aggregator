@@ -163,6 +163,16 @@ def is_reality_ws(link):
     return "security=reality" in low and "type=ws" in low
 
 
+def count_nodes_in(path):
+    """读取已有的 base64 订阅文件，返回其中节点数（失败返回 0）"""
+    try:
+        raw = base64.b64decode(b64pad(path.read_text(encoding="utf-8")))
+        text = raw.decode("utf-8", "ignore")
+        return sum(1 for line in text.splitlines() if "://" in line)
+    except Exception:
+        return 0
+
+
 # ---------------------------------------------------------------- TCP 测活
 def tcp_alive(host, port, timeout=3.0):
     try:
@@ -387,6 +397,10 @@ def main():
     ap.add_argument("--workers", type=int, default=64, help="并发数")
     ap.add_argument("--pre-limit", type=int, default=3000,
                     help="测活前先按源优先级截断到 N 个（默认 3000，0=不限）")
+    ap.add_argument("--min-ratio", type=float, default=0.3,
+                    help="缩水守门阈值：本轮少于上轮×该比例则保留旧结果（默认 0.3）")
+    ap.add_argument("--force", action="store_true",
+                    help="强制覆盖输出，跳过缩水守门")
     args = ap.parse_args()
 
     t0 = time.time()
@@ -464,6 +478,21 @@ def main():
     if args.limit and len(all_nodes) > args.limit:
         all_nodes = all_nodes[:args.limit]
         log("  按 --limit 截断到 %d 个" % args.limit)
+
+    # 缩水守门：本轮结果远少于上一轮时，保留上一轮输出
+    # 目的：某轮所有源同时挂掉时，不要把订阅覆盖成空的，否则客户端直接断网
+    if not args.force:
+        prev = count_nodes_in(OUT_DIR / "merged.txt")
+        if prev and len(all_nodes) < prev * args.min_ratio:
+            log("-" * 62)
+            log("  [!] 缩水守门触发：本轮 %d 个，上一轮 %d 个，低于阈值 %.0f%%"
+                % (len(all_nodes), prev, args.min_ratio * 100))
+            log("      已保留上一轮输出，本次不覆盖。")
+            log("      确认要强制覆盖请加 --force")
+            log("=" * 62)
+            return 2
+        if prev:
+            log("  缩水守门：本轮 %d 个 / 上一轮 %d 个，通过" % (len(all_nodes), prev))
 
     # ③ 输出
     OUT_DIR.mkdir(exist_ok=True)

@@ -1,9 +1,18 @@
 name: 更新订阅
 
 # 每 6 小时自动跑一次，也可以手动点 "Run workflow"
+# cron 用 23 分而不是整点：GitHub 官方文档明说整点是负载高峰，
+# schedule 会被延迟甚至丢弃。上游成熟项目也统一避开整点。
 on:
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '23 */6 * * *'
+  push:
+    # 改了源列表或脚本时立刻验证一次，不用等下一个调度窗口
+    branches: [main]
+    paths:
+      - 'sources.txt'
+      - 'aggregate.py'
+      - '.github/workflows/update.yml'
   workflow_dispatch:
     inputs:
       limit:
@@ -17,6 +26,11 @@ on:
 
 permissions:
   contents: write
+
+# 同一时间只允许一个实例，避免两次运行互相覆盖 push
+concurrency:
+  group: update-subscription
+  cancel-in-progress: false
 
 jobs:
   aggregate:
@@ -43,23 +57,31 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config core.quotepath false
           git add output/ || true
           if git diff --staged --quiet; then
             echo "没有变化，跳过提交"
           else
             git commit -m "订阅更新 $(date -u '+%Y-%m-%d %H:%M UTC')"
-            git push
+            # 与另一次运行撞车时，rebase 后重试一次
+            git push || (git pull --rebase -X theirs origin main && git push)
           fi
 
       - name: 输出访问地址
         run: |
           echo "### 订阅已更新" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Clash / FlClash 订阅：**" >> $GITHUB_STEP_SUMMARY
+          echo "**v2rayN / v2rayNG（Xray 兼容版）：**" >> $GITHUB_STEP_SUMMARY
+          echo "\`https://raw.githubusercontent.com/${{ github.repository }}/main/output/merged-xray.txt\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Clash / FlClash：**" >> $GITHUB_STEP_SUMMARY
           echo "\`https://raw.githubusercontent.com/${{ github.repository }}/main/output/merged.yaml\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**v2rayN / v2rayNG 订阅：**" >> $GITHUB_STEP_SUMMARY
-          echo "\`https://raw.githubusercontent.com/${{ github.repository }}/main/output/merged.txt\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**jsDelivr 加速版（国内更快）：**" >> $GITHUB_STEP_SUMMARY
+          echo "**jsDelivr 加速（国内更快）：**" >> $GITHUB_STEP_SUMMARY
           echo "\`https://cdn.jsdelivr.net/gh/${{ github.repository }}@main/output/merged.yaml\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**本轮节点数：**" >> $GITHUB_STEP_SUMMARY
+          for f in output/merged.txt output/merged-xray.txt; do
+            n=$(base64 -d "$f" 2>/dev/null | grep -c '://' || echo 0)
+            echo "- \`$f\`: $n 个" >> $GITHUB_STEP_SUMMARY
+          done
