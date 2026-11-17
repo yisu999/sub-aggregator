@@ -1,0 +1,14 @@
+# 统一换行符，避免 Windows 本地与 Linux runner 之间互相踩坑
+* text=auto eol=lf
+
+# Windows 批处理必须是 CRLF，否则 cmd 解析会出怪问题
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 脚本与配置用 LF，Linux runner 上更安全
+*.py text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.txt text eol=lf

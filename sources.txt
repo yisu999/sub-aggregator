@@ -1,0 +1,36 @@
+# 订阅源列表
+# ------------------------------------------------------------
+# 每行一个订阅地址，以 # 开头的是注释。
+# 只支持 V2Ray 格式（base64 编码的节点列表，或每行一个节点链接）。
+# Clash YAML 格式的源请跳过 —— 本脚本不解析 YAML，避免引入第三方依赖。
+#
+# 下面的源按实测通过率排序（数据来自 AutoMergePublicNodes 2026-11-16 统计）
+# ------------------------------------------------------------
+
+# ① ermaozi —— 通过率 100% (25/25)，548 节点
+https://blog.ermao.net/sub/v2ray/ermao.net
+
+# ② Surfboard-tg-mixed —— 通过率 89.1% (245/275)，8691 节点，量最大
+https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/splitted/mixed
+
+# ③ mheidari-all —— 通过率 89.4% (101/113)，14735 节点
+https://raw.githubusercontent.com/mheidari98/.proxy/main/all
+
+# ④ Au1rxx-base64 —— 通过率 86.2% (150/174)，1751 节点
+https://raw.githubusercontent.com/Au1rxx/free-vpn-subscriptions/main/output/v2ray-base64.txt
+
+# ⑤ 以下为补充源（未经统计，但历史可用）
+https://raw.githubusercontent.com/tonykongcn/free-vpn-subscriptions/main/output/v2ray-base64.txt
+https://raw.githubusercontent.com/ninjastrikers/v2ray-configs/main/splitted/vless.txt
+
+# 【已实测失效，2026-11-17】
+# Barabama-we   → 404，文件路径已变
+# ninja-hy2     → 返回空，无节点
+# https://raw.githubusercontent.com/Barabama/FreeNodes/main/nodes/wenode.txt
+# https://raw.githubusercontent.com/ninjastrikers/v2ray-configs/main/splitted/hysteria.txt
+
+# ⑥ 现成的高质量聚合输出（由他人 CI 真测筛选，直接叠加进来）
+#    verified = 海外真测 + 国内可达探针双重通过，通常只有几十个，最有希望直连
+https://cdn.jsdelivr.net/gh/LeilaoMi/AutoMergePublicNodes-Optimized@main/output/verified.txt
+#    global = 仅海外真测通过，最多 300 个
+https://cdn.jsdelivr.net/gh/LeilaoMi/AutoMergePublicNodes-Optimized@main/output/global.txt
