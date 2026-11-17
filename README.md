@@ -5,7 +5,7 @@
 **纯 Python 标准库实现，不需要 `pip install` 任何东西。**
 
 > 本仓库自带 GitHub Actions（`.github/workflows/update.yml`），
-> 每 6 小时自动跑一轮，结果自动提交回 `订阅/` 目录，手机随时可订阅。
+> 每 6 小时自动跑一轮，结果自动提交回 `output/` 目录，手机随时可订阅。
 > 订阅地址见下方「方式二」。
 
 ---
@@ -27,7 +27,7 @@
 
 ### 方式一：本地手动跑（最简单）
 
-双击 **`运行.bat`**，等 20–30 秒，结果在 **`订阅/`** 目录。
+双击 **`运行.bat`**，等 20–30 秒，结果在 **`output/`** 目录。
 
 命令行参数（可选）：
 
@@ -52,18 +52,25 @@ python aggregate.py --timeout 5          # 放宽 TCP 超时（网络差时用�
 把这个目录推到你的 GitHub 仓库，`.github/workflows/update.yml` 会**每 6 小时**自动跑一次，
 结果自动提交回仓库，手机随时能订阅。
 
-推上去之后，你的订阅地址是：
+推上去之后，你的订阅地址是（把 `用户名/仓库` 换成你自己的）：
 
 ```
-Clash / FlClash :  https://raw.githubusercontent.com/你的用户名/你的仓库/main/订阅/merged.yaml
-v2rayN / v2rayNG:  https://raw.githubusercontent.com/你的用户名/你的仓库/main/订阅/merged.txt
+Clash / FlClash :  https://raw.githubusercontent.com/用户名/仓库/main/output/merged.yaml
+v2rayN / v2rayNG:  https://raw.githubusercontent.com/用户名/仓库/main/output/merged.txt
 ```
 
 国内访问 raw.githubusercontent.com 可能慢，用 jsDelivr 版本：
 
 ```
-https://cdn.jsdelivr.net/gh/你的用户名/你的仓库@main/订阅/merged.yaml
+https://cdn.jsdelivr.net/gh/用户名/仓库@main/output/merged.yaml
 ```
+
+> 本仓库的实际地址（已部署）：
+> ```
+> Clash / FlClash :  https://raw.githubusercontent.com/yisu999/sub-aggregator/main/output/merged.yaml
+> v2rayN / v2rayNG:  https://raw.githubusercontent.com/yisu999/sub-aggregator/main/output/merged.txt
+> jsDelivr 加速    :  https://cdn.jsdelivr.net/gh/yisu999/sub-aggregator@main/output/merged.yaml
+> ```
 
 不想建仓库的话，也可以直接用别人已经跑好的（见 `sources.txt` 第 ⑥ 组）。
 
@@ -73,9 +80,9 @@ https://cdn.jsdelivr.net/gh/你的用户名/你的仓库@main/订阅/merged.yaml
 
 | 文件 | 格式 | 给谁用 |
 |---|---|---|
-| `订阅/merged.txt` | Base64 | v2rayN、v2rayNG、FlClash（通用） |
-| `订阅/merged.yaml` | Clash YAML | FlClash、Clash Verge、mihomo（支持规则分流） |
-| `订阅/merged.urls` | 明文，每行一个 | 自己肉眼检查、或手动挑节点 |
+| `output/merged.txt` | Base64 | v2rayN、v2rayNG、FlClash（通用） |
+| `output/merged.yaml` | Clash YAML | FlClash、Clash Verge、mihomo（支持规则分流） |
+| `output/merged.urls` | 明文，每行一个 | 自己肉眼检查、或手动挑节点 |
 
 YAML 已用 mihomo 核心校验过：`mihomo.exe -t -f merged.yaml` → `test is successful`。
 

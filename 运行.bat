@@ -36,7 +36,7 @@ echo.
 if errorlevel 1 (
     echo  [!] Failed. See the error above.
 ) else (
-    echo  [OK] Finished. Output is in the "订阅" folder.
+    echo  [OK] Finished. Output is in the "output" folder.
 )
 echo.
 pause

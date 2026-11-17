@@ -38,7 +38,8 @@ except Exception:
 
 BASE = Path(__file__).resolve().parent
 # 输出目录固定在本脚本同级，保证「本地跑」和「GitHub Actions 跑」路径一致
-OUT_DIR = BASE / "订阅"
+# 用英文名是为了让订阅 URL 保持干净，避免出现 %E8%AE%A2%E9%98%85 这种编码
+OUT_DIR = BASE / "output"
 SOURCES_FILE = BASE / "sources.txt"
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
